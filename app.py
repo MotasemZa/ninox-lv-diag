@@ -1434,8 +1434,14 @@ async def api_update_install(request: Request):
                         f.write(chunk)
                         
                 logger.info("Extracting update...")
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(tmpdir)
+                try:
+                    # Use system unzip to preserve file permissions on macOS
+                    subprocess.run(["unzip", "-q", "-o", zip_path, "-d", tmpdir], check=True)
+                    logger.info("Extraction using system unzip completed.")
+                except Exception as unzip_err:
+                    logger.warning("System unzip failed, falling back to zipfile: %s", unzip_err)
+                    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                        zip_ref.extractall(tmpdir)
                     
                 # If we are running in an .app bundle, sys.argv[0] might be inside the bundle
                 current_binary = os.path.abspath(sys.argv[0])
@@ -1468,12 +1474,40 @@ async def api_update_install(request: Request):
                             logger.warning("Failed to clean previous old_app_dir: %s", rm_err)
                         
                     os.rename(app_dir, old_app_dir)
+                    
+                    if os.path.exists(app_dir):
+                        try:
+                            shutil.rmtree(app_dir)
+                        except Exception as rm_err:
+                            logger.warning("Failed to remove existing app_dir destination: %s", rm_err)
+                            
                     shutil.move(new_app_dir, app_dir)
+                    
+                    # Explicitly make sure the main executable has execution permissions
+                    main_exec = os.path.join(app_dir, "Contents", "MacOS", "Ninox Diagnostics")
+                    if os.path.exists(main_exec):
+                        try:
+                            st = os.stat(main_exec)
+                            os.chmod(main_exec, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+                            logger.info("Restored execute permissions on %s", main_exec)
+                        except Exception as chmod_err:
+                            logger.error("Failed to chmod main executable: %s", chmod_err)
+                            
+                    # Clear macOS quarantine attributes to avoid Gatekeeper blocks
+                    try:
+                        subprocess.run(["xattr", "-cr", app_dir], check=False)
+                        logger.info("Cleared quarantine attributes on %s", app_dir)
+                    except Exception as xattr_err:
+                        logger.warning("Failed to clear quarantine attributes: %s", xattr_err)
+                    
+                    # Wait a moment before starting to allow OS to sync filesystem changes
+                    time.sleep(0.5)
                     
                     # Restart the new application bundle using the 'open' command.
                     # This prevents Gatekeeper / taskgated security terminations on macOS due to binary swaps in running processes.
                     logger.info("Restarting application: %s", app_dir)
                     subprocess.Popen(["open", app_dir])
+                    time.sleep(1.0)
                     os._exit(0)
                 else:
                     # Fallback/standard file replacement mode
