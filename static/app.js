@@ -537,55 +537,21 @@
         // Reset DB selection
         state.databases = {};
         state.selectedDb = null;
+        state.dbSizes = {};
         updateConfigSummary();
         updateRunButton();
         loadDatabases(hostname);
         
-        // Show dashboard container but reset metrics/button
-        const dash = document.getElementById('host-dashboard');
-        if (dash) dash.style.display = 'block';
-        
-        document.getElementById('dash-status').textContent = '-';
-        document.getElementById('dash-version').textContent = '-';
-        document.getElementById('dash-disk').textContent = '-';
-        document.getElementById('dash-uptime').textContent = '-';
-        document.getElementById('dash-memory').textContent = '-';
-        document.getElementById('dash-logs').textContent = '';
-        state.dbSizes = {};
-        
-        // Re-render db tree (sizes will be cleared because state.dbSizes is empty)
-        renderDbTree();
-
-        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
-        const fetchText = document.getElementById('btn-fetch-text');
-        if (fetchBtn) {
-            fetchBtn.disabled = false;
-            fetchBtn.className = 'btn-primary';
-            fetchBtn.style.opacity = '1';
-            fetchBtn.style.cursor = 'pointer';
-        }
-        if (fetchText) {
-            fetchText.textContent = 'Fetch Host Health & Storage';
-        }
+        // Auto-fetch lightweight health (fast, safe for any host)
+        loadHostDashboard(hostname);
     }
 
     async function loadHostDashboard(host) {
         const dash = document.getElementById('host-dashboard');
         const loading = document.getElementById('dash-loading');
-        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
-        const fetchText = document.getElementById('btn-fetch-text');
 
         if (dash) dash.style.display = 'block';
         if (loading) loading.style.display = 'inline-block';
-        
-        if (fetchBtn) {
-            fetchBtn.disabled = true;
-            fetchBtn.style.opacity = '0.7';
-            fetchBtn.style.cursor = 'not-allowed';
-        }
-        if (fetchText) {
-            fetchText.textContent = 'Fetching Diagnostics...';
-        }
 
         document.getElementById('dash-status').textContent = '-';
         document.getElementById('dash-version').textContent = '-';
@@ -593,7 +559,6 @@
         document.getElementById('dash-uptime').textContent = '-';
         document.getElementById('dash-memory').textContent = '-';
         document.getElementById('dash-logs').textContent = '';
-        state.dbSizes = {};
         
         try {
             const data = await apiFetch('/api/host/dashboard?host=' + encodeURIComponent(host));
@@ -603,39 +568,54 @@
             document.getElementById('dash-uptime').textContent = data.uptime || '-';
             document.getElementById('dash-memory').textContent = data.memory || '-';
             document.getElementById('dash-logs').textContent = data.logs || '';
-            
+        } catch (err) {
+            console.error(err);
+            document.getElementById('dash-status').textContent = 'Error';
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    }
+
+    async function scanStorageSizes() {
+        if (!state.selectedHost) return;
+        
+        const scanBtn = document.getElementById('btn-scan-storage');
+        const scanText = document.getElementById('btn-scan-storage-text');
+        
+        if (scanBtn) {
+            scanBtn.disabled = true;
+            scanBtn.style.opacity = '0.6';
+            scanBtn.style.cursor = 'not-allowed';
+        }
+        if (scanText) scanText.textContent = 'Scanning...';
+        
+        try {
+            const data = await apiFetch('/api/host/storage?host=' + encodeURIComponent(state.selectedHost));
             state.dbSizes = data.db_sizes || {};
+            
+            if (data.timed_out) {
+                showToast('Storage scan timed out — partial results shown', 'warning');
+            } else {
+                const count = Object.keys(state.dbSizes).length;
+                showToast('Storage scan complete — ' + count + ' databases measured', 'success');
+            }
             
             // Re-render db tree to show sizes
             if (Object.keys(state.databases).length > 0) {
                 renderDbTree();
             }
-
-            if (fetchBtn) {
-                fetchBtn.disabled = false;
-                fetchBtn.className = 'btn-secondary';
-                fetchBtn.style.opacity = '1';
-                fetchBtn.style.cursor = 'pointer';
-            }
-            if (fetchText) {
-                fetchText.textContent = 'Refresh Host Health & Storage';
-            }
+            
+            if (scanText) scanText.textContent = 'Rescan Storage';
         } catch (err) {
             console.error(err);
-            document.getElementById('dash-status').textContent = 'Error';
-            showToast('Failed to fetch host diagnostics: ' + err.message, 'error');
-            
-            if (fetchBtn) {
-                fetchBtn.disabled = false;
-                fetchBtn.className = 'btn-primary';
-                fetchBtn.style.opacity = '1';
-                fetchBtn.style.cursor = 'pointer';
-            }
-            if (fetchText) {
-                fetchText.textContent = 'Fetch Host Health & Storage';
-            }
+            showToast('Storage scan failed: ' + err.message, 'error');
+            if (scanText) scanText.textContent = 'Scan Storage Sizes';
         } finally {
-            if (loading) loading.style.display = 'none';
+            if (scanBtn) {
+                scanBtn.disabled = false;
+                scanBtn.style.opacity = '1';
+                scanBtn.style.cursor = 'pointer';
+            }
         }
     }
 
@@ -650,12 +630,32 @@
         els.dbSkeleton.style.display = '';
         els.dbTree.innerHTML = '';
         els.dbTreeTitle.textContent = 'Databases on ' + host;
+        
+        // Reset storage scan button and warning
+        const scanBtn = document.getElementById('btn-scan-storage');
+        const scanText = document.getElementById('btn-scan-storage-text');
+        const storageWarning = document.getElementById('storage-warning');
+        if (scanBtn) { scanBtn.style.display = 'none'; }
+        if (storageWarning) { storageWarning.style.display = 'none'; }
+        if (scanText) { scanText.textContent = 'Scan Storage Sizes'; }
+        state.dbSizes = {};
 
         try {
             const data = await apiFetch('/api/dbs?host=' + encodeURIComponent(host));
             state.databases = data.accounts || {};
             state.accountsMetadata = data.metadata || {};
             renderDbTree();
+            
+            // Show scan storage button after databases load
+            const accountCount = Object.keys(state.databases).length;
+            if (scanBtn && accountCount > 0) {
+                scanBtn.style.display = 'inline-block';
+            }
+            
+            // Show warning for large hosts (20+ accounts — likely public cloud)
+            if (storageWarning && accountCount >= 20) {
+                storageWarning.style.display = 'block';
+            }
         } catch (err) {
             showToast('Failed to load databases: ' + err.message, 'error');
             els.dbTree.innerHTML = '';
@@ -1425,12 +1425,12 @@
             loadHosts(true);
         });
 
-        // Fetch host diagnostics button
-        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
-        if (fetchBtn) {
-            fetchBtn.addEventListener('click', () => {
+        // Scan storage sizes button
+        const scanBtn = document.getElementById('btn-scan-storage');
+        if (scanBtn) {
+            scanBtn.addEventListener('click', () => {
                 if (state.selectedHost) {
-                    loadHostDashboard(state.selectedHost);
+                    scanStorageSizes();
                 } else {
                     showToast('Please select a host first', 'warning');
                 }

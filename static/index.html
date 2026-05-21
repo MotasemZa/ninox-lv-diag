@@ -102,8 +102,14 @@
 
             <!-- DB tree -->
             <div class="db-tree-container" id="db-tree-container" style="display:none;">
-                <div class="db-tree-header">
+                <div class="db-tree-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h3 class="db-tree-title" id="db-tree-title">Databases</h3>
+                    <button id="btn-scan-storage" style="display: none; background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.65rem; font-family: var(--font); transition: all 0.2s; white-space: nowrap;" onmouseover="this.style.color='var(--primary-light)'; this.style.borderColor='rgba(99,102,241,0.3)'" onmouseout="this.style.color='var(--text-muted)'; this.style.borderColor='rgba(255,255,255,0.1)'">
+                        <span id="btn-scan-storage-text">Scan Storage Sizes</span>
+                    </button>
+                </div>
+                <div id="storage-warning" style="display: none; background: rgba(251, 146, 60, 0.1); border: 1px solid rgba(251, 146, 60, 0.25); border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.5rem; font-size: 0.7rem; color: #fb923c; line-height: 1.4;">
+                    ⚠️ <strong>Large host detected</strong> — Storage scan may take several minutes and consume server resources. Use with caution.
                 </div>
                 <!-- DB loading skeleton -->
                 <div class="loading-skeleton db-skeleton" id="db-skeleton" style="display:none;">
@@ -134,13 +140,6 @@
                     <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin: 0; letter-spacing: 0.05em;">Host Health</h3>
                     <div id="dash-loading" style="display:none; font-size: 0.7rem; color: var(--primary-light);"><span class="run-btn-spinner" style="width: 10px; height: 10px; border-width: 2px; border-top-color: var(--primary-light); display: inline-block; margin-right: 4px;"></span> Fetching...</div>
                 </div>
-                
-                <button id="btn-fetch-diagnostics" class="btn-primary" style="display: flex; align-items: center; justify-content: center; width: 100%; margin-bottom: 0.8rem; font-size: 0.75rem; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; margin-right: 6px;">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                    <span id="btn-fetch-text">Fetch Host Health &amp; Storage</span>
-                </button>
 
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; margin-bottom: 0.8rem;">
                     <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px;">

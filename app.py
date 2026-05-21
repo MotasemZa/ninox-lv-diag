@@ -948,7 +948,7 @@ async def api_dbs(host: str = Query(...)):
 
 @app.get("/api/host/dashboard")
 async def api_host_dashboard(host: str = Query(...)):
-    """Fetch automatic host-level diagnostics for the dashboard."""
+    """Fetch lightweight host-level diagnostics (fast, safe for any host)."""
     if not host:
         raise HTTPException(status_code=400, detail="host is required")
         
@@ -959,10 +959,9 @@ async def api_host_dashboard(host: str = Query(...)):
         "nxdb_status": "Unknown",
         "nxdb_version": "Unknown",
         "logs": "",
-        "db_sizes": {}
     }
     
-    # 1. Host stats + nxdb status + df + nxdb version
+    # Fast commands only — all return instantly
     version_cmd = (
         "node -p \"require('/usr/local/nxdb/package.json').version\" 2>/dev/null || "
         "node -p \"require('/var/nxdb/package.json').version\" 2>/dev/null || "
@@ -1006,17 +1005,31 @@ async def api_host_dashboard(host: str = Query(...)):
             if len(parts) >= 5:
                 dashboard["nxdb_version"] = parts[4].strip()
                 
-    # 2. Recent logs
+    # Recent logs (bounded by tail -100, safe)
     logs_result = run_tsh_command(host, "journalctl -u nxdb --since '1 hour ago' --no-pager | tail -100", timeout=30)
     if logs_result["returncode"] == 0:
         dashboard["logs"] = logs_result["stdout"].strip()
-        
-    # 3. DB Sizes
+                    
+    return dashboard
+
+
+@app.get("/api/host/storage")
+async def api_host_storage(host: str = Query(...)):
+    """Scan database storage sizes on a host (heavy — runs du -sh).
+    
+    This is separated from the dashboard endpoint because it can be
+    extremely slow on public-cloud hosts with thousands of accounts
+    and terabytes of data.
+    """
+    if not host:
+        raise HTTPException(status_code=400, detail="host is required")
+    
+    db_sizes: dict[str, str] = {}
+    
     size_cmd = "du -sh /var/nxdb/accounts/*/db/*/data 2>/dev/null"
-    size_result = run_tsh_command(host, size_cmd, timeout=30)
+    size_result = run_tsh_command(host, size_cmd, timeout=120)
     if size_result["returncode"] == 0:
         for line in size_result["stdout"].strip().splitlines():
-            # line: "45M   /var/nxdb/accounts/acct1/db/db1/data"
             parts = line.split(maxsplit=1)
             if len(parts) == 2:
                 size, path = parts
@@ -1024,9 +1037,9 @@ async def api_host_dashboard(host: str = Query(...)):
                 if match:
                     acct = match.group(1)
                     db = match.group(2)
-                    dashboard["db_sizes"][f"{acct}/{db}"] = size
+                    db_sizes[f"{acct}/{db}"] = size
                     
-    return dashboard
+    return {"db_sizes": db_sizes, "timed_out": size_result.get("timed_out", False)}
 
 
 @app.get("/api/playbooks")
