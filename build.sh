@@ -13,6 +13,7 @@ echo "Building Ninox Diagnostics for macOS..."
 # --add-data: include the static folder and playbooks.yaml
 
 /usr/bin/python3 -m PyInstaller --noconfirm \
+    --clean \
     --windowed \
     --onefile \
     --name "Ninox Diagnostics" \
@@ -22,6 +23,7 @@ echo "Building Ninox Diagnostics for macOS..."
     --hidden-import "fastapi" \
     --hidden-import "pywebview" \
     --hidden-import "webview" \
+    --hidden-import "requests" \
     main.py
 
 echo "Build complete! Check the 'dist' folder for Ninox Diagnostics.app"

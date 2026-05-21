@@ -15,7 +15,7 @@ def get_free_port():
 
 def run_server(port):
     # Run Uvicorn in the background thread
-    uvicorn.run(fastapi_app, host="127.0.0.1", port=port, log_level="error")
+    uvicorn.run(fastapi_app, host="127.0.0.1", port=port, log_level="error", loop="asyncio")
 
 def main():
     port = get_free_port()
