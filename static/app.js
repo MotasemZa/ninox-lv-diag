@@ -540,16 +540,55 @@
         updateConfigSummary();
         updateRunButton();
         loadDatabases(hostname);
-        loadHostDashboard(hostname);
+        
+        // Show dashboard container but reset metrics/button
+        const dash = document.getElementById('host-dashboard');
+        if (dash) dash.style.display = 'block';
+        
+        document.getElementById('dash-status').textContent = '-';
+        document.getElementById('dash-version').textContent = '-';
+        document.getElementById('dash-disk').textContent = '-';
+        document.getElementById('dash-uptime').textContent = '-';
+        document.getElementById('dash-memory').textContent = '-';
+        document.getElementById('dash-logs').textContent = '';
+        state.dbSizes = {};
+        
+        // Re-render db tree (sizes will be cleared because state.dbSizes is empty)
+        renderDbTree();
+
+        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
+        const fetchText = document.getElementById('btn-fetch-text');
+        if (fetchBtn) {
+            fetchBtn.disabled = false;
+            fetchBtn.className = 'btn-primary';
+            fetchBtn.style.opacity = '1';
+            fetchBtn.style.cursor = 'pointer';
+        }
+        if (fetchText) {
+            fetchText.textContent = 'Fetch Host Health & Storage';
+        }
     }
 
     async function loadHostDashboard(host) {
         const dash = document.getElementById('host-dashboard');
         const loading = document.getElementById('dash-loading');
+        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
+        const fetchText = document.getElementById('btn-fetch-text');
+
         if (dash) dash.style.display = 'block';
         if (loading) loading.style.display = 'inline-block';
         
+        if (fetchBtn) {
+            fetchBtn.disabled = true;
+            fetchBtn.style.opacity = '0.7';
+            fetchBtn.style.cursor = 'not-allowed';
+        }
+        if (fetchText) {
+            fetchText.textContent = 'Fetching Diagnostics...';
+        }
+
         document.getElementById('dash-status').textContent = '-';
+        document.getElementById('dash-version').textContent = '-';
         document.getElementById('dash-disk').textContent = '-';
         document.getElementById('dash-uptime').textContent = '-';
         document.getElementById('dash-memory').textContent = '-';
@@ -559,6 +598,7 @@
         try {
             const data = await apiFetch('/api/host/dashboard?host=' + encodeURIComponent(host));
             document.getElementById('dash-status').textContent = data.nxdb_status || '-';
+            document.getElementById('dash-version').textContent = data.nxdb_version || '-';
             document.getElementById('dash-disk').textContent = data.disk_usage || '-';
             document.getElementById('dash-uptime').textContent = data.uptime || '-';
             document.getElementById('dash-memory').textContent = data.memory || '-';
@@ -570,9 +610,30 @@
             if (Object.keys(state.databases).length > 0) {
                 renderDbTree();
             }
+
+            if (fetchBtn) {
+                fetchBtn.disabled = false;
+                fetchBtn.className = 'btn-secondary';
+                fetchBtn.style.opacity = '1';
+                fetchBtn.style.cursor = 'pointer';
+            }
+            if (fetchText) {
+                fetchText.textContent = 'Refresh Host Health & Storage';
+            }
         } catch (err) {
             console.error(err);
             document.getElementById('dash-status').textContent = 'Error';
+            showToast('Failed to fetch host diagnostics: ' + err.message, 'error');
+            
+            if (fetchBtn) {
+                fetchBtn.disabled = false;
+                fetchBtn.className = 'btn-primary';
+                fetchBtn.style.opacity = '1';
+                fetchBtn.style.cursor = 'pointer';
+            }
+            if (fetchText) {
+                fetchText.textContent = 'Fetch Host Health & Storage';
+            }
         } finally {
             if (loading) loading.style.display = 'none';
         }
@@ -1363,6 +1424,18 @@
         els.btnRefreshHosts.addEventListener('click', () => {
             loadHosts(true);
         });
+
+        // Fetch host diagnostics button
+        const fetchBtn = document.getElementById('btn-fetch-diagnostics');
+        if (fetchBtn) {
+            fetchBtn.addEventListener('click', () => {
+                if (state.selectedHost) {
+                    loadHostDashboard(state.selectedHost);
+                } else {
+                    showToast('Please select a host first', 'warning');
+                }
+            });
+        }
 
         // Run button
         els.runBtn.addEventListener('click', startRun);

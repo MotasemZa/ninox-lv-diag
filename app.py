@@ -957,16 +957,24 @@ async def api_host_dashboard(host: str = Query(...)):
         "memory": "Unknown",
         "uptime": "Unknown",
         "nxdb_status": "Unknown",
+        "nxdb_version": "Unknown",
         "logs": "",
         "db_sizes": {}
     }
     
-    # 1. Host stats + nxdb status + df
+    # 1. Host stats + nxdb status + df + nxdb version
+    version_cmd = (
+        "node -p \"require('/usr/local/nxdb/package.json').version\" 2>/dev/null || "
+        "node -p \"require('/var/nxdb/package.json').version\" 2>/dev/null || "
+        "cat /usr/local/nxdb/package.json 2>/dev/null | grep '\"version\":' | head -1 | cut -d'\"' -f4 || "
+        "echo 'Unknown'"
+    )
     cmds = [
         "df -h /var/nxdb",
         "free -h",
         "uptime",
-        "systemctl status nxdb --no-pager"
+        "systemctl status nxdb --no-pager",
+        version_cmd
     ]
     cmd_str = " ; echo '---' ; ".join(cmds)
     result = run_tsh_command(host, cmd_str, timeout=30)
@@ -983,7 +991,7 @@ async def api_host_dashboard(host: str = Query(...)):
                     if len(tokens) >= 5:
                         dashboard["disk_usage"] = tokens[-2] # e.g. "45%"
                         
-            # parse memory (just return the whole `free -h` stdout or part of it)
+            # parse memory
             dashboard["memory"] = "\n".join(free_out.strip().splitlines()[:2])
             
             # parse uptime
@@ -994,6 +1002,9 @@ async def api_host_dashboard(host: str = Query(...)):
                 dashboard["nxdb_status"] = "Active (Running)"
             else:
                 dashboard["nxdb_status"] = "Inactive/Error"
+                
+            if len(parts) >= 5:
+                dashboard["nxdb_version"] = parts[4].strip()
                 
     # 2. Recent logs
     logs_result = run_tsh_command(host, "journalctl -u nxdb --since '1 hour ago' --no-pager | tail -100", timeout=30)

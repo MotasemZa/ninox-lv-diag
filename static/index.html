@@ -134,17 +134,29 @@
                     <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin: 0; letter-spacing: 0.05em;">Host Health</h3>
                     <div id="dash-loading" style="display:none; font-size: 0.7rem; color: var(--primary-light);"><span class="run-btn-spinner" style="width: 10px; height: 10px; border-width: 2px; border-top-color: var(--primary-light); display: inline-block; margin-right: 4px;"></span> Fetching...</div>
                 </div>
+                
+                <button id="btn-fetch-diagnostics" class="btn-primary" style="display: flex; align-items: center; justify-content: center; width: 100%; margin-bottom: 0.8rem; font-size: 0.75rem; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; margin-right: 6px;">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                    <span id="btn-fetch-text">Fetch Host Health &amp; Storage</span>
+                </button>
+
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; margin-bottom: 0.8rem;">
                     <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px;">
                         <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Service Status</div>
                         <div id="dash-status" style="font-size: 0.8rem; font-weight: 500;">-</div>
                     </div>
                     <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Ninox Version</div>
+                        <div id="dash-version" style="font-size: 0.8rem; font-weight: 500;">-</div>
+                    </div>
+                    <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px; grid-column: span 2;">
                         <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">/var/nxdb Usage</div>
                         <div id="dash-disk" style="font-size: 0.8rem; font-weight: 500;">-</div>
                     </div>
                     <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px; grid-column: span 2;">
-                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Load & Uptime</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Load &amp; Uptime</div>
                         <div id="dash-uptime" style="font-size: 0.75rem; font-weight: 400; line-height: 1.2;">-</div>
                     </div>
                     <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px; grid-column: span 2;">
