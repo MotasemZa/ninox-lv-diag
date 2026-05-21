@@ -63,7 +63,8 @@ EXTENDED_TIMEOUT = 600
 
 # Update settings
 CURRENT_VERSION = "v1.0.0"
-GITHUB_REPO = "motasem/ninox-lv-diag" # Replace with your actual repo
+GITHUB_REPO = "MotasemZa/ninox-lv-diag" # Replace with your actual repo
+
 
 # Directories
 LV_DIAG_DIR = Path.home() / ".lv-diag"
