@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ninox Database Diagnostics — Production database health monitoring and diagnostic tool">
+    <title>Ninox DB Diagnostics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="app-header" id="app-header">
+        <div class="header-inner">
+            <div class="header-brand">
+                <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                </svg>
+                <h1 class="header-title">Ninox DB Diagnostics</h1>
+                <span class="version-badge" id="version-badge">v1.0.0</span>
+            </div>
+            <div id="update-container" style="display:none; margin-left: auto;">
+                <button id="btn-update-app" class="btn-primary" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); font-size: 0.75rem; padding: 0.3rem 0.8rem; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; margin-right: 4px;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Update to <span id="update-version"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════════ STATUS BAR ═══════════════ -->
+    <div class="status-bar" id="status-bar">
+        <div class="status-bar-inner">
+            <div class="status-connection" id="status-connection">
+                <span class="status-dot disconnected" id="status-dot"></span>
+                <span class="status-label" id="status-label">Checking connection…</span>
+            </div>
+            <div class="status-info" id="status-info">
+                <span class="status-user" id="status-user"></span>
+                <span class="status-separator" id="status-separator" style="display:none;">•</span>
+                <span class="status-proxy" id="status-proxy"></span>
+                <span class="status-separator" id="status-separator-2" style="display:none;">•</span>
+                <span class="status-expiry" id="status-expiry"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="main-content" id="main-content">
+        <!-- ──── LEFT PANEL: Host & Database ──── -->
+        <section class="panel panel-hosts" id="panel-hosts">
+            <div class="panel-header">
+                <h2 class="panel-title">
+                    <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                    </svg>
+                    Host &amp; Database
+                </h2>
+                <button class="btn-icon" id="btn-refresh-hosts" title="Refresh hosts">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Host search -->
+            <div class="host-search-container" id="host-search-container">
+                <div class="host-search">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" class="host-search-input" id="host-search-input" placeholder="Search hosts…" autocomplete="off" spellcheck="false">
+                    <span class="host-count" id="host-count"></span>
+                </div>
+                <div class="host-dropdown" id="host-dropdown"></div>
+            </div>
+
+            <div class="cache-timestamp" id="cache-timestamp"></div>
+
+            <!-- Host loading skeleton -->
+            <div class="loading-skeleton host-skeleton" id="host-skeleton" style="display:none;">
+                <div class="skeleton-line skeleton-line-lg"></div>
+                <div class="skeleton-line skeleton-line-md"></div>
+                <div class="skeleton-line skeleton-line-sm"></div>
+                <div class="skeleton-line skeleton-line-md"></div>
+                <div class="skeleton-line skeleton-line-lg"></div>
+            </div>
+
+            <!-- DB tree -->
+            <div class="db-tree-container" id="db-tree-container" style="display:none;">
+                <div class="db-tree-header">
+                    <h3 class="db-tree-title" id="db-tree-title">Databases</h3>
+                </div>
+                <!-- DB loading skeleton -->
+                <div class="loading-skeleton db-skeleton" id="db-skeleton" style="display:none;">
+                    <div class="skeleton-line skeleton-line-md"></div>
+                    <div class="skeleton-line skeleton-line-sm" style="margin-left:1rem;"></div>
+                    <div class="skeleton-line skeleton-line-sm" style="margin-left:1rem;"></div>
+                    <div class="skeleton-line skeleton-line-md"></div>
+                    <div class="skeleton-line skeleton-line-sm" style="margin-left:1rem;"></div>
+                </div>
+                <div class="db-tree" id="db-tree"></div>
+            </div>
+        </section>
+
+        <!-- ──── CENTER PANEL: Playbooks ──── -->
+        <section class="panel panel-playbooks" id="panel-playbooks">
+            <div class="panel-header">
+                <h2 class="panel-title">
+                    <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                    Playbooks
+                </h2>
+            </div>
+            
+            <div id="host-dashboard" style="display:none; margin-bottom: 1.5rem; background: rgba(15, 23, 42, 0.4); border-radius: 8px; padding: 1rem; border: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                    <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin: 0; letter-spacing: 0.05em;">Host Health</h3>
+                    <div id="dash-loading" style="display:none; font-size: 0.7rem; color: var(--primary-light);"><span class="run-btn-spinner" style="width: 10px; height: 10px; border-width: 2px; border-top-color: var(--primary-light); display: inline-block; margin-right: 4px;"></span> Fetching...</div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; margin-bottom: 0.8rem;">
+                    <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Service Status</div>
+                        <div id="dash-status" style="font-size: 0.8rem; font-weight: 500;">-</div>
+                    </div>
+                    <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">/var/nxdb Usage</div>
+                        <div id="dash-disk" style="font-size: 0.8rem; font-weight: 500;">-</div>
+                    </div>
+                    <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px; grid-column: span 2;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Load & Uptime</div>
+                        <div id="dash-uptime" style="font-size: 0.75rem; font-weight: 400; line-height: 1.2;">-</div>
+                    </div>
+                    <div class="metric-card" style="background: rgba(255,255,255,0.03); padding: 0.6rem; border-radius: 6px; grid-column: span 2;">
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.2rem;">Memory</div>
+                        <div id="dash-memory" style="font-size: 0.7rem; font-weight: 400; line-height: 1.2; white-space: pre-wrap; font-family: monospace;">-</div>
+                    </div>
+                </div>
+                <button id="view-logs-btn" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.75rem; width: 100%; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">View Recent nxdb Logs</button>
+            </div>
+            
+            <h3 style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.8rem; letter-spacing: 0.05em;">Diagnostic Playbooks</h3>
+            
+            <div class="playbook-list" id="playbook-list">
+                <!-- Loading skeleton for playbooks -->
+                <div class="loading-skeleton playbook-skeleton" id="playbook-skeleton">
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──── RIGHT PANEL: Run & Results ──── -->
+        <section class="panel panel-results" id="panel-results">
+            <div class="panel-header">
+                <h2 class="panel-title">
+                    <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Run &amp; Results
+                </h2>
+            </div>
+
+            <!-- Selected config summary -->
+            <div class="config-summary" id="config-summary">
+                <div class="config-item" id="config-host">
+                    <span class="config-label">Host</span>
+                    <span class="config-value" id="config-host-value">Not selected</span>
+                </div>
+                <div class="config-item" id="config-db">
+                    <span class="config-label">Database</span>
+                    <span class="config-value" id="config-db-value">Not selected</span>
+                </div>
+                <div class="config-item" id="config-playbook">
+                    <span class="config-label">Playbook</span>
+                    <span class="config-value" id="config-playbook-value">Not selected</span>
+                </div>
+                
+                <div id="config-inputs" style="display:none; flex-direction: column; gap: 0.8rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                    <!-- Dynamic inputs rendered here -->
+                </div>
+            </div>
+
+            <!-- Run button -->
+            <button class="run-btn" id="run-btn" disabled>
+                <svg class="run-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span class="run-btn-text" id="run-btn-text">Run Diagnostic</span>
+                <div class="run-btn-spinner" id="run-btn-spinner" style="display:none;"></div>
+            </button>
+
+            <!-- Progress section -->
+            <div class="progress-section" id="progress-section" style="display:none;">
+                <div class="progress-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+                    <h3 class="progress-title" style="margin-bottom: 0;">Progress</h3>
+                    <div class="global-loading-badge" id="global-loading-badge" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--primary-light); font-weight: 500; background: rgba(99, 102, 241, 0.1); padding: 0.2rem 0.6rem; border-radius: 12px; border: 1px solid rgba(99, 102, 241, 0.2); animation: pulse 2s infinite;">
+                        <div class="run-btn-spinner" style="width: 12px; height: 12px; border-width: 2px; border-top-color: var(--primary-light); border-right-color: transparent; border-bottom-color: transparent; border-left-color: transparent; display: block;"></div>
+                        Scanning in progress...
+                    </div>
+                </div>
+                <div class="progress-steps" id="progress-steps"></div>
+            </div>
+
+            <!-- Report section -->
+            <div class="report-section" id="report-section" style="display:none;">
+                <!-- Severity header -->
+                <div class="severity-header" id="severity-header">
+                    <span class="severity-icon" id="severity-icon"></span>
+                    <span class="severity-text" id="severity-text"></span>
+                </div>
+
+                <!-- Summary -->
+                <div class="report-summary" id="report-summary"></div>
+                
+                <!-- Reasoning -->
+                <div class="report-reasoning" id="report-reasoning" style="display:none; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 1rem; padding: 0.8rem; background: var(--bg-surface); border-left: 3px solid var(--primary); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;"></div>
+
+                <!-- Errors -->
+                <div class="report-errors" id="report-errors" style="display:none;"></div>
+
+                <!-- Step results -->
+                <div class="report-steps" id="report-steps"></div>
+
+                <!-- Report actions -->
+                <div class="report-actions" id="report-actions">
+                    <button class="btn-secondary" id="btn-copy-markdown">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy as Markdown
+                    </button>
+                    <button class="btn-secondary" id="btn-save-report">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Save to Disk
+                    </button>
+                    <button class="btn-primary" id="btn-run-again">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        Run Again
+                    </button>
+                </div>
+
+                <!-- Save path -->
+                <div class="report-save-path" id="report-save-path" style="display:none;">
+                    <span class="save-path-label">Report saved to:</span>
+                    <code class="save-path-value" id="save-path-value"></code>
+                    <button class="btn-icon btn-copy-path" id="btn-copy-path" title="Copy path">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══════════════ FOOTER ═══════════════ -->
+    <footer class="app-footer" id="app-footer">
+        <span class="footer-text" id="footer-text">Ninox DB Diagnostics • Reports saved locally</span>
+    </footer>
+
+    <!-- ═══════════════ CONFIRM MODAL ═══════════════ -->
+    <div class="modal-overlay" id="modal-overlay" style="display:none;">
+        <div class="confirm-dialog" id="confirm-dialog">
+            <div class="confirm-icon-wrap">
+                <svg class="confirm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <h3 class="confirm-title" id="confirm-title">Confirm Deep Scan</h3>
+            <p class="confirm-message" id="confirm-message">This playbook runs a deep scan which may take several minutes. Are you sure you want to continue?</p>
+            <div class="confirm-actions">
+                <button class="btn-secondary" id="btn-confirm-cancel">Cancel</button>
+                <button class="btn-primary btn-danger" id="btn-confirm-proceed">Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ LOGS MODAL ═══════════════ -->
+    <div class="modal-overlay" id="logs-modal" style="display:none; z-index: 2000;">
+        <div class="confirm-dialog" style="max-width: 800px; width: 90%;">
+            <div class="confirm-title" style="display:flex; justify-content: space-between; margin-bottom: 0;">
+                <span>Recent nxdb Logs</span>
+                <button onclick="document.getElementById('logs-modal').style.display='none'" style="background:none;border:none;color:white;cursor:pointer;font-size:1.2rem;opacity:0.7;">&times;</button>
+            </div>
+            <div class="confirm-message" style="margin-top: 1rem;">
+                <pre id="dash-logs" style="background: #0f172a; padding: 1rem; border-radius: 6px; overflow: auto; max-height: 60vh; font-size: 0.75rem; color: #a3be8c; border: 1px solid rgba(255,255,255,0.1); margin: 0;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ UPDATE PROGRESS MODAL ═══════════════ -->
+    <div class="modal-overlay" id="update-modal" style="display:none; z-index: 3000;">
+        <div class="confirm-dialog" style="text-align: center;">
+            <div class="confirm-icon-wrap" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px; height:24px;">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </div>
+            <h3 class="confirm-title">Updating Application</h3>
+            <p class="confirm-message">Downloading and installing the latest version...<br>The application will restart automatically.</p>
+            <div style="margin: 1.5rem 0; text-align: center;">
+                <span class="run-btn-spinner" style="display:inline-block; border-top-color: var(--success); width:24px; height:24px; border-width: 3px;"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ TOAST ═══════════════ -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

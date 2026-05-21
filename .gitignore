@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# PyInstaller build and distribution directories
+build/
+dist/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store

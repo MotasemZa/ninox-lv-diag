@@ -1,0 +1,136 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 # `lv` Tool Reference \'97 for the Ninox Diagnostic Tool\
+\
+`lv` is an in-house CLI on Ninox production database hosts. It manages on-disk LevelDB databases. This document is the reference for an automation tool that drives `lv` remotely via `tsh ssh`.\
+\
+## Environment\
+\
+- **Driver machine:** operator's Mac\
+- **Transport:** Teleport (`tsh ssh apollo@<host> "<remote command>"`)\
+- **Remote user:** `apollo` (read-only)\
+- **Cluster proxy:** `teleport.ninox.de`\
+- **Hosts:** ~1000, listed by `tsh ls`. Each host = one customer workspace.\
+\
+## Path convention (verified on host `zeppelin`)\
+\
+```\
+/var/nxdb/accounts/<account-id>/db/<db-id>/data/        # live database\
+/var/nxdb/accounts/<account-id>/snapshot/<db-id>/<ts>/data/   # snapshots\
+```\
+\
+- One host has multiple accounts (e.g., 15 on `zeppelin`).\
+- Each account has multiple databases under `db/`.\
+- Snapshots under `snapshot/` are historical and out of scope for diagnostics.\
+- Watch out for accounts named `undefined` \'97 these are corrupt/orphaned, skip in the UI.\
+\
+A LevelDB directory is recognised by containing a file named `CURRENT`.\
+\
+To enumerate all live DBs on a host:\
+```\
+tsh ssh apollo@<host> "find /var/nxdb/accounts -maxdepth 4 -path '*/db/*/data' -name 'data' -type d"\
+```\
+\
+## Hard rules\
+\
+1. **Read-only.** Every `lv` invocation MUST pass `--readonly`. No exceptions.\
+2. **Allowlisted subcommands only.** Permitted: `diagnose`, `report`, `stats`, `tables`, `validate`, `orphans`, `schema`, `metrics`, `sizes`, `keys`, `search`, `history`, `version`, `analyze`, `views`.\
+3. **Forbidden subcommands** (must never be invoked by the tool, even via user input): `repair`, `compact`, `strip-field`, `purge-history`, `backup`, `generate`, `export`, `export-history`, `get`, `repl`.\
+4. **`--json` preferred** wherever the command supports it.\
+5. **Timeout every call.** Default 60s per `lv` call; `lv report` and `--deep` get 5 minutes.\
+\
+## Output formats\
+\
+### `lv diagnose --readonly --json <path>`\
+Returns a JSON object with shape:\
+```json\
+\{\
+  "path": "...",\
+  "status": "ok" | "warning" | "fail",\
+  "isLocked": bool,\
+  "isAccessible": bool,\
+  "checks": [\{"name": str, "status": "pass"|"warn"|"fail", "message": str\}, ...],\
+  "info": \{ ... \},\
+  "warnings": [str, ...]\
+\}\
+```\
+Severity mapping: any `checks[].status == "fail"` \uc0\u8594  red. Else any `"warn"` or top-level `status == "warning"` \u8594  amber. Else green.\
+\
+A locked database is normal (live customer DB) \'97 surface as info, not amber.\
+\
+### `lv report --readonly -o <dir> --name <name> <path>`\
+Writes two files to `<dir>`:\
+- `<name>-report.md` \'97 human-readable, optimized for LLM consumption\
+- `<name>-report.json` \'97 full structured data\
+\
+Run time: typically 2\'9630s, longer on big DBs. Use `--skip-metrics` for speed if needed.\
+\
+### `lv stats --readonly --json <path>`\
+LevelDB internals: LSM tree, compaction, write delay. Useful for performance triage.\
+\
+### `lv tables --readonly <path>`\
+Human-friendly table list with record counts and sizes. (May or may not support `--json` \'97 verify.)\
+\
+### `lv validate --readonly --check-schema --check-references --json --limit 100 <path>`\
+Data integrity. Important for "customer says records are missing/broken" tickets.\
+\
+### Less-used but allowlisted\
+- `lv orphans` \'97 broken references\
+- `lv schema` \'97 schema dump\
+- `lv sizes` \'97 per-record size analysis\
+- `lv keys` \'97 key listing (do not dump full DB; always use `--limit`)\
+- `lv metrics` \'97 Ninox-specific metrics\
+\
+## Sample real outputs\
+\
+### `lv diagnose --readonly --json` on a live locked DB:\
+```json\
+\{\
+  "path": "/var/nxdb/accounts/qbq3gdhcfss1cfnih/db/paui5tj0wh16/data",\
+  "status": "warning",\
+  "isLocked": true,\
+  "isAccessible": true,\
+  "checks": [\
+    \{"name": "Directory Accessible", "status": "pass", "message": "Directory is accessible"\},\
+    \{"name": "CURRENT File", "status": "pass", "message": "Points to MANIFEST-000588"\},\
+    \{"name": "MANIFEST File", "status": "pass", "message": "MANIFEST-000588 (1.13 KB)"\},\
+    \{"name": "Lock Status", "status": "warn", "message": "Database is locked (another process is using it)"\},\
+    \{"name": "SST Files", "status": "pass", "message": "6 files, 11.04 MB total"\},\
+    \{"name": "Database Open", "status": "pass", "message": "Database opened successfully"\}\
+  ],\
+  "info": \{"ManifestFile": "MANIFEST-000588", "SSTFileCount": 6, ...\},\
+  "warnings": ["Database is locked (another process is using it)"]\
+\}\
+```\
+\
+### `lv tables --readonly` (plain text):\
+```\
+Database Tables\
+\uc0\u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \u9472 \
+Path: /var/nxdb/accounts/<...>/data\
+Tables: 19\
+Total Nodes: 521\
+\
+ID  Name                    Records  Size\
+A   Tasks                   6        1.24 KB\
+BB  Kalkulation             141      29.19 KB\
+...\
+```\
+\
+### `lv report --readonly` Markdown header sample:\
+```\
+# Ninox Database Report:\
+Generated: 2026-05-21 13:35 UTC | LV: 0.3.0\
+\
+## Summary\
+- 21 tables, 233 fields\
+- 521 records, 11.04 MB on disk\
+- Analysis: 0 errors, 19 warnings, 4 hints\
+- Health: warning\
+```\
+The report includes: schema overview, relationships, per-table NinoxScript, static analysis findings, metrics, health.}
