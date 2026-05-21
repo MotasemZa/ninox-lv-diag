@@ -46,7 +46,7 @@ FORBIDDEN_LV_SUBCOMMANDS = frozenset({
     "backup", "generate", "export", "export-history", "get", "repl",
 })
 
-DB_PATH_REGEX = re.compile(r"^/var/nxdb/accounts/[a-z0-9]+/db/[a-z0-9]+/data$")
+DB_PATH_REGEX = re.compile(r"^/var/nxdb/accounts/[a-zA-Z0-9_.-]+/db/[a-zA-Z0-9_.-]+/data$")
 
 ALLOWED_HOST_COMMANDS = {
     "df_h":                    "df -h",
@@ -903,7 +903,7 @@ async def api_dbs(host: str = Query(...)):
 
         # Parse: /var/nxdb/accounts/<account_id>/db/<db_id>/data
         match = re.match(
-            r"^/var/nxdb/accounts/([a-z0-9]+)/db/([a-z0-9]+)/data$",
+            r"^/var/nxdb/accounts/([a-zA-Z0-9_.-]+)/db/([a-zA-Z0-9_.-]+)/data$",
             line,
         )
         if match:
@@ -1033,7 +1033,7 @@ async def api_host_storage(host: str = Query(...)):
             parts = line.split(maxsplit=1)
             if len(parts) == 2:
                 size, path = parts
-                match = re.search(r"accounts/([a-z0-9]+)/db/([a-z0-9]+)/data", path)
+                match = re.search(r"accounts/([a-zA-Z0-9_.-]+)/db/([a-zA-Z0-9_.-]+)/data", path)
                 if match:
                     acct = match.group(1)
                     db = match.group(2)
