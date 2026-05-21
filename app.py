@@ -852,10 +852,11 @@ async def api_hosts(refresh: bool = Query(False)):
 
 @app.get("/api/dbs")
 async def api_dbs(host: str = Query(...)):
-    """List databases on a host, grouped by account ID."""
+    """List databases on a host, grouped by account ID, along with workspace user emails."""
     if not host:
         raise HTTPException(status_code=400, detail="host is required")
 
+    # 1. Find live LevelDB databases
     cmd = "find /var/nxdb/accounts -maxdepth 4 -path '*/db/*/data' -name 'data' -type d"
     result = run_tsh_command(host, cmd, timeout=30)
 
@@ -885,7 +886,39 @@ async def api_dbs(host: str = Query(...)):
             db_id = match.group(2)
             accounts.setdefault(account_id, []).append(db_id)
 
-    return {"accounts": accounts}
+    # 2. Try fetching User Management System (ums.json) to map workspace names and user emails
+    accounts_metadata = {}
+    ums_result = run_tsh_command(host, "cat /var/nxdb/ums.json", timeout=15)
+    if ums_result["returncode"] == 0 and ums_result["stdout"].strip():
+        try:
+            ums_data = json.loads(ums_result["stdout"])
+            users_map = {u["id"]: u for u in ums_data.get("users", [])}
+            
+            for team in ums_data.get("teams", []):
+                team_id = team.get("id")
+                if not team_id:
+                    continue
+                    
+                team_name = team.get("name", "Unknown")
+                member_emails = []
+                for mu in team.get("users", []):
+                    user_id = mu.get("user")
+                    if user_id in users_map:
+                        email = users_map[user_id].get("email")
+                        if email:
+                            member_emails.append(email)
+                            
+                accounts_metadata[team_id] = {
+                    "name": team_name,
+                    "emails": sorted(list(set(member_emails)))
+                }
+        except Exception as e:
+            logger.warning("Failed to parse ums.json on %s: %s", host, str(e))
+
+    return {
+        "accounts": accounts,
+        "metadata": accounts_metadata
+    }
 
 
 @app.get("/api/host/dashboard")

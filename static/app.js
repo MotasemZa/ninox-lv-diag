@@ -15,6 +15,7 @@
         hostsCachedAt: null,
         selectedHost: null,         // string
         databases: {},              // accountId -> [dbId, ...]
+        accountsMetadata: {},       // accountId -> {name, emails: []}
         selectedDb: null,           // {accountId, dbId, path}
         loadingDbs: false,
         playbooks: [],
@@ -592,6 +593,7 @@
         try {
             const data = await apiFetch('/api/dbs?host=' + encodeURIComponent(host));
             state.databases = data.accounts || {};
+            state.accountsMetadata = data.metadata || {};
             renderDbTree();
         } catch (err) {
             showToast('Failed to load databases: ' + err.message, 'error');
@@ -616,19 +618,38 @@
         accounts.forEach(accountId => {
             const dbs = state.databases[accountId];
             const group = createElement('div', { className: 'db-account-group' });
+            const meta = state.accountsMetadata[accountId];
 
             // Header
+            const labelText = meta && meta.name && meta.name !== 'Unknown' 
+                ? `${meta.name} (${accountId})` 
+                : `Account ${accountId}`;
+
             const header = createElement('div', {
                 className: 'db-account-header',
                 onClick: () => toggleAccountGroup(header, listEl),
             }, [
                 createChevronSvg(),
-                createElement('span', { className: 'db-account-label' }, 'Account ' + accountId),
+                createElement('span', { className: 'db-account-label', title: accountId }, labelText),
                 createElement('span', { className: 'db-account-count' }, String(dbs.length)),
             ]);
 
             // DB list
             const listEl = createElement('div', { className: 'db-list' });
+
+            // Display workspace user emails if available
+            if (meta && meta.emails && meta.emails.length > 0) {
+                const usersContainer = createElement('div', { className: 'db-account-users' });
+                usersContainer.appendChild(createElement('div', { className: 'db-account-users-title' }, 'Workspace Users'));
+                
+                const emailsList = createElement('ul', { className: 'db-account-users-list' });
+                meta.emails.forEach(email => {
+                    emailsList.appendChild(createElement('li', { className: 'db-account-user-item', title: email }, email));
+                });
+                usersContainer.appendChild(emailsList);
+                listEl.appendChild(usersContainer);
+            }
+
             dbs.forEach(dbId => {
                 const fullPath = '/var/nxdb/accounts/' + accountId + '/db/' + dbId + '/data';
                 const displayPath = accountId + '/' + dbId;
@@ -648,13 +669,12 @@
                 if (state.dbSizes && state.dbSizes[key]) {
                     const sizeBadge = createElement('span', { 
                         style: 'font-size: 0.65rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; margin-left: auto;' 
-                    }, state.dbSizes[key]);
+                     }, state.dbSizes[key]);
                     item.appendChild(sizeBadge);
                 }
                 
                 listEl.appendChild(item);
             });
-
 
             group.appendChild(header);
             group.appendChild(listEl);
