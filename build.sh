@@ -14,6 +14,7 @@ echo "Building Ninox Diagnostics for macOS..."
 
 /usr/bin/python3 -m PyInstaller --noconfirm \
     --windowed \
+    --onefile \
     --name "Ninox Diagnostics" \
     --add-data "static:static" \
     --add-data "playbooks.yaml:." \

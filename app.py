@@ -62,7 +62,7 @@ DEFAULT_TIMEOUT = 60
 EXTENDED_TIMEOUT = 600
 
 # Update settings
-CURRENT_VERSION = "v1.0.0"
+CURRENT_VERSION = "v1.0.1"
 GITHUB_REPO = "MotasemZa/ninox-lv-diag" # Replace with your actual repo
 
 
