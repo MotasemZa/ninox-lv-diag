@@ -70,3 +70,39 @@ Playbooks are defined in `playbooks.yaml`. You can add new playbooks without cod
 - **Path validation**: Database paths are regex-validated before use
 - **Audit logged**: Every remote command is logged with timestamp, host, command, exit code, and duration
 - **Localhost only**: Web UI is bound to 127.0.0.1, CORS locked down
+
+## Updates and Release Building
+
+To build a standalone macOS application and publish updates that can be installed directly from the UI:
+
+1. **Push source changes to GitHub**:
+   Ensure you have configured the git remote and pushed your local branch:
+   ```bash
+   git push -u origin main
+   ```
+
+2. **Package the App**:
+   Run the build script to generate the executable bundle:
+   ```bash
+   chmod +x build.sh
+   ./build.sh
+   ```
+   This compiles everything and produces `dist/Ninox Diagnostics.app`.
+
+3. **Zip the App Bundle**:
+   Compress the compiled `.app` bundle into a zip file:
+   ```bash
+   cd dist
+   zip -r Ninox-Diagnostics-macOS.zip "Ninox Diagnostics.app"
+   cd ..
+   ```
+
+4. **Create a GitHub Release**:
+   - Go to your repository page: `https://github.com/motasem/ninox-lv-diag`
+   - Draft a new release (e.g., tag it `v1.0.1` or higher).
+   - Set the Release Title to match the tag (e.g., `v1.0.1`).
+   - Upload the `Ninox-Diagnostics-macOS.zip` file as a release asset.
+   - Publish the release.
+
+The application checks for updates from the UI via the GitHub API, downloads the zip file, and automatically replaces the running binary on update installation.
+
