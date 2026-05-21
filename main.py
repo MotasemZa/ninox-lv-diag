@@ -14,20 +14,37 @@ def get_free_port():
     s.close()
     return port
 
+def cleanup_old_install():
+    try:
+        import os
+        import shutil
+        current_binary = os.path.abspath(sys.argv[0])
+        if ".app/Contents/MacOS/" in current_binary:
+            app_dir = current_binary.split(".app/Contents/MacOS/")[0] + ".app"
+            old_app_dir = app_dir + ".old"
+            if os.path.exists(old_app_dir):
+                time.sleep(2)  # Give the old process a moment to exit
+                shutil.rmtree(old_app_dir)
+    except Exception:
+        pass
+
 def run_server(port):
     # Run Uvicorn in the background thread
     uvicorn.run(fastapi_app, host="127.0.0.1", port=port, log_level="error", loop="asyncio")
 
 def main():
+    # Start background cleanup thread for previous bundle upgrades
+    threading.Thread(target=cleanup_old_install, daemon=True).start()
+    
     port = get_free_port()
     
     server_thread = threading.Thread(target=run_server, args=(port,), daemon=True)
     server_thread.start()
     
-    # Wait for the FastAPI server to start up (up to 15 seconds)
+    # Wait for the FastAPI server to start up (up to 60 seconds)
     start_time = time.time()
     server_ready = False
-    while time.time() - start_time < 15:
+    while time.time() - start_time < 60:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.1)
@@ -54,4 +71,6 @@ def main():
     webview.start()
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     main()

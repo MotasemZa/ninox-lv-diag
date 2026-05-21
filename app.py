@@ -1413,32 +1413,60 @@ async def api_update_install(request: Request):
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
                     zip_ref.extractall(tmpdir)
                     
-                # Assume the zip contains a single folder or the .app bundle itself
-                # For this script, we'll assume it's just the binary.
-                # Since pyinstaller creates an executable, let's find the first executable file
-                extracted_files = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f != "update.zip"]
-                if not extracted_files:
-                    logger.error("Update zip is empty")
-                    return
-                    
-                new_binary = extracted_files[0]
-                
                 # If we are running in an .app bundle, sys.argv[0] might be inside the bundle
-                # On macOS we can overwrite the binary in-place
                 current_binary = os.path.abspath(sys.argv[0])
                 
-                logger.info("Replacing %s with %s", current_binary, new_binary)
-                
-                # Copy the new binary over the old one
-                shutil.copy2(new_binary, current_binary)
-                
-                # Ensure executable permissions
-                st = os.stat(current_binary)
-                os.chmod(current_binary, st.st_mode | stat.S_IEXEC)
-                
-                logger.info("Restarting application...")
-                os.execv(current_binary, [current_binary] + sys.argv[1:])
-                
+                if ".app/Contents/MacOS/" in current_binary:
+                    # macOS App Bundle mode: replace the entire .app directory
+                    app_dir = current_binary.split(".app/Contents/MacOS/")[0] + ".app"
+                    
+                    # Find the new .app directory in the extracted files recursively
+                    new_app_dir = None
+                    for root_dir, dirs, files in os.walk(tmpdir):
+                        for d in dirs:
+                            if d.endswith(".app"):
+                                new_app_dir = os.path.join(root_dir, d)
+                                break
+                        if new_app_dir:
+                            break
+                            
+                    if not new_app_dir:
+                        logger.error("No .app bundle found in the update zip")
+                        return
+                        
+                    logger.info("Replacing app bundle %s with %s", app_dir, new_app_dir)
+                    
+                    old_app_dir = app_dir + ".old"
+                    if os.path.exists(old_app_dir):
+                        try:
+                            shutil.rmtree(old_app_dir)
+                        except Exception as rm_err:
+                            logger.warning("Failed to clean previous old_app_dir: %s", rm_err)
+                        
+                    os.rename(app_dir, old_app_dir)
+                    shutil.move(new_app_dir, app_dir)
+                    
+                    # Restart the new application bundle using the 'open' command.
+                    # This prevents Gatekeeper / taskgated security terminations on macOS due to binary swaps in running processes.
+                    logger.info("Restarting application: %s", app_dir)
+                    subprocess.Popen(["open", app_dir])
+                    os._exit(0)
+                else:
+                    # Fallback/standard file replacement mode
+                    extracted_files = [os.path.join(tmpdir, f) for f in os.listdir(tmpdir) if f != "update.zip"]
+                    if not extracted_files:
+                        logger.error("Update zip is empty")
+                        return
+                        
+                    new_binary = extracted_files[0]
+                    logger.info("Replacing %s with %s", current_binary, new_binary)
+                    shutil.copy2(new_binary, current_binary)
+                    st = os.stat(current_binary)
+                    os.chmod(current_binary, st.st_mode | stat.S_IEXEC)
+                    
+                    logger.info("Restarting application...")
+                    os.execv(current_binary, [current_binary] + sys.argv[1:])
+                    
         except Exception as e:
             logger.error("Update failed: %s", e)
 

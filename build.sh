@@ -15,8 +15,9 @@ echo "Building Ninox Diagnostics for macOS..."
 /usr/bin/python3 -m PyInstaller --noconfirm \
     --clean \
     --windowed \
-    --onefile \
+    --onedir \
     --name "Ninox Diagnostics" \
+    --osx-bundle-identifier "com.ninox.lvdiag" \
     --add-data "static:static" \
     --add-data "playbooks.yaml:." \
     --hidden-import "uvicorn" \
