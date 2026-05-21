@@ -230,6 +230,14 @@ def validate_cleanup_command(cmd: str) -> tuple[bool, str | None]:
 # ---------------------------------------------------------------------------
 
 
+def get_tsh_path() -> str:
+    """Resolve the absolute path of the tsh command on macOS."""
+    for path in ["/usr/local/bin/tsh", "/opt/homebrew/bin/tsh"]:
+        if os.path.exists(path):
+            return path
+    return "tsh"
+
+
 def run_tsh_command(
     host: str,
     remote_cmd: str,
@@ -239,8 +247,9 @@ def run_tsh_command(
     Execute a command on a remote host via tsh ssh.
     Returns {stdout, stderr, returncode, duration_s}.
     """
-    argv = ["tsh", "ssh", f"{REMOTE_USER}@{host}", remote_cmd]
-    logger.info("Executing: tsh ssh %s@%s %r (timeout=%ds)", REMOTE_USER, host, remote_cmd, timeout)
+    tsh_path = get_tsh_path()
+    argv = [tsh_path, "ssh", f"{REMOTE_USER}@{host}", remote_cmd]
+    logger.info("Executing: %s ssh %s@%s %r (timeout=%ds)", tsh_path, REMOTE_USER, host, remote_cmd, timeout)
 
     start = time.monotonic()
     try:
@@ -285,11 +294,13 @@ def run_tsh_command(
 
 def run_local_command(argv: list[str], timeout: int = 10) -> dict[str, Any]:
     """Run a command locally (for tsh status, tsh ls, etc.)."""
-    logger.info("Local command: %s", " ".join(argv))
+    tsh_path = get_tsh_path()
+    resolved_argv = [tsh_path if arg == "tsh" else arg for arg in argv]
+    logger.info("Local command: %s", " ".join(resolved_argv))
     start = time.monotonic()
     try:
         result = subprocess.run(
-            argv,
+            resolved_argv,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -773,19 +784,26 @@ async def api_status():
         if isinstance(data, list) and data:
             data = data[0]
 
-        user = data.get("username") or data.get("user") or data.get("logins", [None])[0]
-        proxy = data.get("proxy_url") or data.get("proxyhost") or data.get("proxy", {}).get("host")
-        expires = data.get("valid_until") or data.get("expires")
+        # Support both new nested format and older flat format
+        active = data.get("active") if isinstance(data, dict) else None
+        if isinstance(active, dict):
+            user = active.get("username") or active.get("user") or (active.get("logins", [None])[0] if active.get("logins") else None)
+            proxy = active.get("proxy_url") or active.get("proxyhost") or active.get("proxy", {}).get("host")
+            expires = active.get("valid_until") or active.get("expires")
+        else:
+            user = data.get("username") or data.get("user") or (data.get("logins", [None])[0] if data.get("logins") else None)
+            proxy = data.get("proxy_url") or data.get("proxyhost") or data.get("proxy", {}).get("host")
+            expires = data.get("valid_until") or data.get("expires")
 
         return {
-            "logged_in": True,
+            "logged_in": user is not None,
             "user": user,
             "proxy": proxy,
             "expires": expires,
         }
     except (json.JSONDecodeError, KeyError, IndexError):
         return {
-            "logged_in": True,
+            "logged_in": False,
             "user": None,
             "proxy": None,
             "expires": None,
