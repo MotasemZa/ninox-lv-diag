@@ -14,14 +14,21 @@ import shlex
 import subprocess
 import time
 import uuid
+import sys
+import stat
+import shutil
+import tempfile
+import zipfile
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import requests
 import yaml
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 # ---------------------------------------------------------------------------
@@ -1330,7 +1337,6 @@ def _execute_fetch_step(
 @app.get("/api/update/check")
 async def api_update_check():
     """Check GitHub releases for a new version."""
-    import requests
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         resp = requests.get(url, timeout=5)
@@ -1368,14 +1374,6 @@ async def api_update_check():
 @app.post("/api/update/install")
 async def api_update_install(request: Request):
     """Download the update and apply it."""
-    import requests
-    import tempfile
-    import zipfile
-    import sys
-    import os
-    import stat
-    import threading
-    
     body = await request.json()
     download_url = body.get("download_url")
     if not download_url:
@@ -1414,7 +1412,6 @@ async def api_update_install(request: Request):
                 logger.info("Replacing %s with %s", current_binary, new_binary)
                 
                 # Copy the new binary over the old one
-                import shutil
                 shutil.copy2(new_binary, current_binary)
                 
                 # Ensure executable permissions
@@ -1451,5 +1448,4 @@ async def serve_index():
             status_code=404,
             content={"detail": "Frontend not found. Place index.html in static/"},
         )
-    from fastapi.responses import FileResponse
     return FileResponse(str(index_path), media_type="text/html")

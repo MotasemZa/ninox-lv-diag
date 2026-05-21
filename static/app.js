@@ -1400,6 +1400,12 @@
     async function checkForUpdates() {
         try {
             const res = await apiFetch('/api/update/check');
+            if (res && res.current_version) {
+                const badge = document.getElementById('version-badge');
+                if (badge) {
+                    badge.textContent = res.current_version;
+                }
+            }
             if (res && res.update_available) {
                 const container = document.getElementById('update-container');
                 const btn = document.getElementById('btn-update-app');
